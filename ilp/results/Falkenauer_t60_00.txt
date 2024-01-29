@@ -1,0 +1,18 @@
+* Solver : GLPK
+
+* Status
+  Result count       : 1
+  Termination status : TIME_LIMIT
+  Message from the solver:
+  "The search was prematurely terminated, because the time limit has been exceeded."
+
+* Candidate solution (result #1)
+  Primal status      : FEASIBLE_POINT
+  Dual status        : NO_SOLUTION
+  Objective value    : 2.20000e+01
+  Objective bound    : 2.00000e+01
+  Relative gap       : 9.09091e-02
+
+* Work counters
+  Solve time (sec)   : 3.60019e+03
+
