@@ -7,6 +7,7 @@
 #include <ctime>
 #include <queue>
 #include <cmath>
+#include <random>
 
 using namespace std;
 
@@ -84,44 +85,23 @@ pair<Bin, Bin> largestDifferencingMethod(vector<int>& items) {
     return make_pair(set1, set2);
 }
 
-void local_search(vector<Bin>& solution, int c) {
-    int i = 0;
-    while (!is_feasible(solution, c)) {
-        sort(solution.begin(), solution.end());
-        vector<int> items;
-        for (auto item : solution[0].items) items.push_back(item);
-        for (auto item : solution[1].items) items.push_back(item);
-        pair<Bin, Bin> validPair = largestDifferencingMethod(items);
-        if ((solution[0] == validPair.first && solution[1] == validPair.second) ||
-            (solution[1] == validPair.first && solution[0] == validPair.second) ||
-            abs(solution[0].currWeight - solution[1].currWeight) < abs(validPair.first.currWeight - validPair.second.currWeight)) {
-            break;
-            // sort(solution[0].items.begin(), solution[0].items.end(), greater<int>());
-            // int item = solution[0].items.back();
-            // solution[0].items.pop_back();
-            // solution[0].currWeight -= item;
-            // best_fit(solution, item, c);
-        }
-        else {
-            solution[0] = validPair.first;
-            solution[1] = validPair.second;
+vector<int> generateNeighboors(int n, int max) {
+    vector<int> randomNumbers;
+
+    while (randomNumbers.size() < n) {
+        int randomNumber = rand() % max;
+        if (find(randomNumbers.begin(), randomNumbers.end(), randomNumber) == randomNumbers.end()) {
+            randomNumbers.push_back(randomNumber);
         }
     }
-    while (!is_feasible(solution, c)) {
-        sort(solution.begin(), solution.end());
-        sort(solution[0].items.begin(), solution[0].items.end(), greater<int>());
-        int item = solution[0].items.back();
-        solution[0].items.pop_back();
-        solution[0].currWeight -= item;
-        best_fit(solution, item, c);
-    }
+
+    return randomNumbers;
 }
 
-vector<Bin> perturbation(vector<Bin>& solution) {
+vector<Bin> eliminate_bin(vector<Bin>& solution, int i) {
     vector<Bin> newSolution = solution;
-    int indexRemove = rand() % newSolution.size();
-    Bin b = newSolution[indexRemove];
-    newSolution.erase(newSolution.begin() + indexRemove);
+    Bin b = newSolution[i];
+    newSolution.erase(newSolution.begin() + i);
     for (int item : b.items) {
         int indexInsert = rand() % newSolution.size();
         newSolution[indexInsert].currWeight += item;
@@ -130,67 +110,120 @@ vector<Bin> perturbation(vector<Bin>& solution) {
     return newSolution;
 }
 
-void swap(vector<Bin>& solution) {
-    int bin1 = 0, bin2 = 0, index1, index2, item1, item2;
-    while (bin1 != bin2) {
-        bin1 = rand() % solution.size();
-        bin2 = rand() % solution.size();
+void local_search(vector<Bin>& solution, int c) {
+    bool improvement = true;
+    while (!is_feasible(solution, c) && improvement) {
+        improvement = false;
+        for (int i = solution.size() - 1; i > 0; i--) {
+            for (int j = 1; j < i; j++) {
+                if (solution[i].currWeight > c || solution[j].currWeight > c) {
+                    vector<int> items;
+                    for (auto item : solution[i].items) items.push_back(item);
+                    for (auto item : solution[j].items) items.push_back(item);
+                    pair<Bin, Bin> pair = largestDifferencingMethod(items);
+                    bool validPair = 
+                        (solution[i] == pair.first && solution[j] == pair.second) ||
+                        (solution[j] == pair.first && solution[i] == pair.second);
+                    if (!validPair) {
+                        solution[i] = pair.first;
+                        solution[j] = pair.second;
+                        improvement = true;
+                    }
+                }
+            }
+        }
     }
-    index1 = rand() % solution[bin1].items.size();
-    index2 = rand() % solution[bin2].items.size();
-    item1 = solution[bin1].items[index1];
-    item2 = solution[bin2].items[index2];
-    solution[bin1].currWeight += item2 - item1;
-    solution[bin1].items[index1] = item2;
-    solution[bin2].currWeight += item1 - item2;
-    solution[bin2].items[index2] = item1;
+}
+
+vector<Bin> solution_improvement(vector<Bin>& solution, int c) {
+    vector<Bin> s = solution;
+    bool improvement = true;
+    while (improvement) {
+        improvement = false;
+        sort(s.begin(), s.end());
+        int i = s.size()-1;
+        vector<Bin> newSolution = eliminate_bin(s, i);
+        if (is_feasible(newSolution, c)) {
+            improvement = true;
+            s = newSolution;
+            break;
+        } else {
+            local_search(newSolution, c);
+            if(is_feasible(newSolution, c)) {
+                s = newSolution;
+                improvement = true;
+                break;
+            }
+        }
+    }
+    return s;
 }
 
 
-void ils(vector<int>& w, int c) {
-    vector<Bin> solution = initial_solution(w, c);
-    vector<Bin> bestSolution = solution;
-    int iterWithoutImpro = 0;
-    printSolution(bestSolution, true, false, false);
-    for (int i = 0; i < 10000; i++) {
-        vector<Bin> currentSolution;
-        if (iterWithoutImpro == 20) {
-            iterWithoutImpro = 0;
-            currentSolution = solution;
-            swap(currentSolution);
-        } else {
-            currentSolution = perturbation(solution);
-        }
-        local_search(currentSolution, c);
-        int delta = currentSolution.size() - solution.size();
-        // printSolution(currentSolution, false, false, false);
-        if (delta < 0 || 0.6 > ((double) rand() / RAND_MAX)) {
-            solution = currentSolution;
-        }
-        if (solution.size() < bestSolution.size()) {
-            iterWithoutImpro = 0;
-            bestSolution = solution;
-        } else {
-            iterWithoutImpro++;
-        }
+vector<Bin> pertubation(vector<Bin>& solution, int c) {
+    vector<Bin> newSolution = solution;
+    int bin1 = 0, bin2 = 0, index1, index2, item1, item2, n = newSolution.size();
+    while (bin1 == bin2) {
+        bin1 = rand() % n + 1;
+        bin2 = rand() % n + 1;
     }
-    printSolution(bestSolution, false, true, false);
+    if (bin1 == n) {
+        index2 = rand() % newSolution[bin2].items.size();
+        item2 = newSolution[bin2].items[index2];
+        newSolution.push_back({item2, {item2}});
+        newSolution[bin2].currWeight -= item2;
+        newSolution[bin2].items.erase(newSolution[bin2].items.begin() + index2);
+    } else if (bin2 == n) {
+            index1 = rand() % newSolution[bin1].items.size();
+        item1 = newSolution[bin1].items[index1];
+        newSolution.push_back({item1, {item1}});
+        newSolution[bin1].currWeight -= item1;
+        newSolution[bin1].items.erase(newSolution[bin1].items.begin() + index1);
+    } else {
+        index1 = rand() % newSolution[bin1].items.size();
+        index2 = rand() % newSolution[bin2].items.size();
+        item1 = newSolution[bin1].items[index1];
+        item2 = newSolution[bin2].items[index2];
+        newSolution[bin1].currWeight += item2 - item1;
+        newSolution[bin1].items[index1] = item2;
+        newSolution[bin2].currWeight += item1 - item2;
+        newSolution[bin2].items[index2] = item1;
+    }
+
+    newSolution.erase(remove_if(newSolution.begin(), newSolution.end(), [](Bin b) { return b.currWeight == 0; }), newSolution.end());
+    return newSolution;
+}
+
+void ils(vector<int>& w, int c, int iter) {
+    int i = 0;
+    vector<Bin> solution = initial_solution(w, c);
+    vector<Bin> bestGlobal = solution;
+    printSolution(bestGlobal, false, true, false);
+    while(i < iter && bestGlobal.size() > 1) {
+        vector<Bin> bestLocal = solution_improvement(solution, c);
+        if (is_feasible(bestLocal, c) && bestLocal.size() < bestGlobal.size())
+            bestGlobal = bestLocal;
+        solution = pertubation(bestLocal, c);
+        i++;
+    }
+    printSolution(bestGlobal, false, true, false);
 }
 
 int main(int argc, char* argv[]) {
-    int n, c, v;
+    int n, c, v, iter, seed;
     vector<int> w;
     vector<Bin> bins;
     const char* filename;
-
-    srand(time(NULL));
     
-    if (argc != 2) {
-        cerr << "Usage: " << argv[0] << " <filename>" << endl;
+    if (argc != 4) {
+        cerr << "Usage: " << argv[0] << " <filename> <iter> <seed>" << endl;
         return 1;
     }
 
     filename = argv[1];
+    iter = atoi(argv[2]);
+    seed = atoi(argv[3]);
+
     ifstream file(filename);
 
     if (!file.is_open()) {
@@ -206,7 +239,9 @@ int main(int argc, char* argv[]) {
 
     file.close();
 
-    ils(w, c);
+    srand(seed);
+
+    ils(w, c, iter);
 
     return 0;
 }
